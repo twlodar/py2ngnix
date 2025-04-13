@@ -1,10 +1,10 @@
-#FROM python:3.12-slim
+FROM python:3.12-slim
 #WORKDIR /app
 #COPY app.py .
 #CMD ["python", "app.py"]
 
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bookworm
+#FROM python:3.11-slim-bookworm
 # Set the working directory in the container
 WORKDIR /app
 # Copy the requirements file (if you have one)
