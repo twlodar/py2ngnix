@@ -14,12 +14,13 @@ from flask_cors import CORS # Dodano CORS
 # --- Konfiguracja ---
 
 SECRETS_FILE = "secrets.yaml"
+SECRET_GEMINI_FILE = "secret_gemini.yaml"
 #GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # GEMINI_API_KEY = "Wklej_Tutaj_Swój_Klucz_API_Google_Gemini"
 GEMINI_MODEL_NAME = 'models/gemini-1.5-flash-latest'
 
 # --- Odczyt klucza API z pliku secret_gemini.yaml ---
-def load_gemini_api_key(filename="secret_gemini.yaml"):
+def load_gemini_api_key(filename=SECRET_GEMINI_FILE):
     """Wczytuje klucz API Gemini z pliku YAML."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     filepath = os.path.join(script_dir, filename)
