@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - app1
+      - app2
+    networks:
+      - appnet
+
+  app1:
+    build: ./app1
+    networks:
+      - appnet
+
+  app2:
+    build: ./app2
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge
