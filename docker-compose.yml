@@ -8,6 +8,7 @@ services:
     depends_on:
       - app1
       - app2
+      - app3
     networks:
       - appnet
 
@@ -20,6 +21,10 @@ services:
     build: ./app2
     networks:
       - appnet
+  app3:
+    build: ./app3
+    networks:
+      - appnet    
 
 networks:
   appnet:
