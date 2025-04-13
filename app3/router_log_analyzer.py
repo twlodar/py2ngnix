@@ -543,4 +543,187 @@ def analyze_logs_with_gemini(api_key, router_data, analysis_hours_ago):
              error_msg += f"\n  Powód blokady (Prompt Feedback): {block_reason}"
              error_msg += f"\n  Oceny bezpieczeństwa (kandydata): {safety_ratings_str}"
              print(error_msg)
-             try
+             try:
+                 error_text = response.text
+                 if error_text: return error_msg + f"\n  Tekst z odpowiedzi (jeśli jest): {error_text}"
+             except ValueError: pass
+             return error_msg
+
+        return response.text
+
+    except Exception as e:
+        print(f"BŁĄD KRYTYCZNY: Wystąpił błąd podczas komunikacji z Gemini API: {e}")
+        error_details = getattr(e, 'message', str(e))
+        try: # Spróbuj uzyskać więcej szczegółów, jeśli to Google API error
+            if hasattr(e, 'response') and hasattr(e.response, 'text'): error_details += f"\nSzczegóły odpowiedzi API: {e.response.text}"
+            elif hasattr(e, 'args'): error_details += f"\nArgumenty błędu: {e.args}"
+        except Exception: pass
+        error_type = type(e).__name__
+        return f"BŁĄD KRYTYCZNY ({error_type}): Nie udało się uzyskać analizy z Gemini. Powód: {error_details}"
+
+
+# --- Główna część skryptu ---
+
+if __name__ == "__main__":
+    print(f"--- Analizator Logów Routera z Gemini ({GEMINI_MODEL_NAME}) ---")
+    start_time = datetime.now()
+
+    # --- Zapytaj użytkownika o okres analizy ---
+    analysis_hours = -1 # Wartość domyślna oznaczająca "bez filtrowania" lub błąd
+    while True:
+        try:
+            prompt_msg = "Podaj okres analizy logów (liczba godzin wstecz od teraz, wpisz 0 aby analizować wszystkie logi): "
+            user_input = input(prompt_msg)
+            analysis_hours = int(user_input)
+            if analysis_hours < 0:
+                print("Liczba godzin nie może być ujemna. Spróbuj ponownie.")
+            else:
+                if analysis_hours == 0:
+                    print("OK, zostaną przeanalizowane wszystkie dostępne logi dmesg.")
+                else:
+                    print(f"OK, logi dmesg zostaną przefiltrowane dla ostatnich {analysis_hours} godzin.")
+                break # Poprawna wartość, wyjdź z pętli
+        except ValueError:
+            print("Nieprawidłowa wartość. Proszę podać liczbę całkowitą.")
+        except EOFError: # Obsługa Ctrl+D
+             print("\nAnulowano wprowadzanie.")
+             sys.exit(0)
+        except KeyboardInterrupt: # Obsługa Ctrl+C
+             print("\nPrzerwano przez użytkownika.")
+             sys.exit(0)
+
+    # Wczytaj konfigurację routerów
+    router_configs = load_config(SECRETS_FILE)
+    if not router_configs:
+        sys.exit(1)
+
+    all_router_data = {}
+    connections = {}
+
+    # Pobieranie danych (logi, czas, uptime)
+    for i, config in enumerate(router_configs):
+        name = config['name']
+        role = config['role']
+        print(f"\n--- Przetwarzanie routera {i+1}/{len(router_configs)}: {name} ({role}) ---")
+        ssh = None
+        router_info = {'config': config, 'logs': None, 'raw_log_length': 0, 'filtered_log_length': 0, 'current_unix_time': None, 'uptime_seconds': None, 'estimated_boot_time_unix': None, 'error': None}
+        try:
+            ssh = get_ssh_connection(
+                config['host'],
+                config['port'],
+                config['user'],
+                config.get('key_path'),
+                config.get('password')
+            )
+            if ssh:
+                connections[name] = ssh
+                # Przekaż liczbę godzin do funkcji pobierającej dane
+                router_specific_data = get_router_data(ssh, analysis_hours)
+                router_info.update(router_specific_data)
+            else:
+                router_info['error'] = "Nie udało się nawiązać połączenia SSH."
+
+        except Exception as e:
+            error_msg = f"Nieoczekiwany błąd krytyczny podczas przetwarzania {name}: {e}"
+            print(f"KRYTYCZNY BŁĄD: {error_msg}")
+            router_info['error'] = error_msg
+        finally:
+             all_router_data[name] = router_info
+
+    # Zamykanie połączeń SSH
+    print("\n--- Zamykanie połączeń SSH ---")
+    closed_count = 0
+    for name, ssh_client in connections.items():
+        if ssh_client:
+            try:
+                ssh_client.close()
+                print(f"Zamknięto połączenie z {name}")
+                closed_count += 1
+            except Exception as e:
+                print(f"Błąd podczas zamykania połączenia z {name}: {e}")
+    print(f"Zamknięto {closed_count} z {len(connections)} aktywnych połączeń.")
+
+
+    print("\n--- Podsumowanie Pobierania Danych ---")
+    successful_connections = len(connections)
+    data_collected_count = 0
+    logs_collected_count = 0 # Liczba routerów, z których pobrano JAKIEKOLWIEK logi (nawet puste po filtracji)
+    filtered_logs_present = 0 # Liczba routerów, które mają NIEPUSTE logi po filtracji
+    time_data_collected_count = 0
+
+    sorted_names_report = sorted(all_router_data.keys(), key=lambda name: (all_router_data[name]['config']['role'] != 'main', name))
+
+    for name in sorted_names_report:
+        data = all_router_data[name]
+        status = "[OK]" if not data.get('error') or "Brak wpisów dmesg" in data.get('error','') else "[BŁĄD]" # Traktuj "brak wpisów" jako OK
+        # Log status: Pobrano (nawet jeśli puste po filtracji), Brak/Błąd jeśli nie pobrano wcale
+        log_status = "Pobrano" if data.get('logs') is not None else "Brak/Błąd"
+        # Filtered log status: Obecne jeśli niepuste, Puste/Brak jeśli puste lub błąd
+        filtered_status = "Obecne" if data.get('logs') else "Puste/Brak"
+        time_status = "Pełne" if data.get('current_unix_time') and data.get('uptime_seconds') is not None and data.get('estimated_boot_time_unix') is not None else "Niepełne/Brak"
+        error_msg = f" Info/Błąd: {data['error']}" if data.get('error') else ""
+
+        print(f"{status:<7} {name} ({data['config']['role']}): Logi: {log_status} (filtrowane: {filtered_status}), Dane czasowe: {time_status}.{error_msg}")
+
+        if not data.get('error') or "Brak wpisów dmesg" in data.get('error',''):
+            data_collected_count += 1
+        if data.get('logs') is not None:
+             logs_collected_count += 1
+        if data.get('logs'): # Czy są niepuste logi po filtracji
+             filtered_logs_present += 1
+        if time_status == "Pełne":
+             time_data_collected_count +=1
+
+    # Sprawdzenie, czy mamy co analizować
+    if logs_collected_count == 0: # Nie udało się pobrać ŻADNYCH logów (nawet pustych)
+        print("\nKRYTYCZNE: Nie udało się pobrać logów dmesg z żadnego routera. Analiza LLM nie jest możliwa.")
+        sys.exit(1)
+    elif filtered_logs_present == 0 and analysis_hours > 0: # Pobrano logi, ale wszystkie są puste po filtracji
+         print(f"\nINFORMACJA: Nie znaleziono żadnych wpisów w logach dmesg we wszystkich routerach w ciągu ostatnich {analysis_hours} godzin. Analiza LLM zostanie przeprowadzona, ale może nie zawierać istotnych informacji.")
+    elif data_collected_count < len(router_configs):
+         print(f"\nUWAGA: Udało się pobrać dane bez krytycznych błędów tylko z {data_collected_count} z {len(router_configs)} routerów.")
+    if logs_collected_count < len(router_configs):
+         print(f"\nUWAGA: Logi dmesg (przed filtrowaniem) pobrano tylko z {logs_collected_count} z {len(router_configs)} routerów.")
+    if time_data_collected_count < len(router_configs):
+         print(f"\nUWAGA: Pełne dane czasowe pobrano tylko z {time_data_collected_count} z {len(router_configs)} routerów. Korelacja czasowa może być utrudniona.")
+
+    # Analiza przez Gemini
+    print(f"\n--- Analiza Danych przez Gemini ({GEMINI_MODEL_NAME}) ---")
+    if GEMINI_API_KEY:
+        analysis_result = analyze_logs_with_gemini(GEMINI_API_KEY, all_router_data, analysis_hours)
+        print("\n" + "="*20 + f" Wynik Analizy Gemini ({analysis_hours}h) " + "="*20)
+        print(analysis_result)
+        print("="* (44 + len(f" Wynik Analizy Gemini ({analysis_hours}h) "))) # Dopasuj długość linii
+    else:
+        # Wyświetl surowe dane, jeśli nie ma API key
+        print("\nUWAGA: Klucz API Gemini nie został znaleziony.")
+        print("Nie można przeprowadzić automatycznej analizy LLM.")
+        print(f"Poniżej znajdują się surowe dane (logi przefiltrowane dla {analysis_hours}h), które udało się pobrać:")
+        for name in sorted_names_report:
+            data = all_router_data[name]
+            print(f"\n\n=== SUROWE DANE DLA: {name} (Rola: {data['config']['role']}) ===")
+            if data.get('error'): print(f"BŁĄD/INFO PODCZAS POBIERANIA: {data['error']}")
+            if data.get('current_unix_time'):
+                 ctime_str = datetime.fromtimestamp(data['current_unix_time'], timezone.utc).strftime('%Y-%m-%d %H:%M:%S %Z')
+                 print(f"Czas systemowy (Unix): {data['current_unix_time']} ({ctime_str})")
+            if data.get('uptime_seconds') is not None: print(f"Uptime (sekundy): {data['uptime_seconds']}")
+            if data.get('estimated_boot_time_unix') is not None:
+                 est_boot_str = datetime.fromtimestamp(data['estimated_boot_time_unix'], timezone.utc).strftime('%Y-%m-%d %H:%M:%S %Z')
+                 print(f"Szacowany czas startu (Unix): {data['estimated_boot_time_unix']} ({est_boot_str})")
+
+            print(f"\n--- Logi dmesg (Filtrowane dla {analysis_hours}h) ---")
+            if data.get('logs') is not None:
+                 if data['logs']:
+                      LOG_PREVIEW_LEN = 2000
+                      if len(data['logs']) > LOG_PREVIEW_LEN:
+                           print(data['logs'][-LOG_PREVIEW_LEN:] + f"\n[... Poprzednie {len(data['logs']) - LOG_PREVIEW_LEN} znaków pominięto ...]")
+                      else: print(data['logs'])
+                      print(f"[INFO: Rozmiar przed filtrowaniem: {data.get('raw_log_length','N/A')} B, po filtrowaniu: {data.get('filtered_log_length','N/A')} B]")
+                 else: print(f"[BRAK WPISÓW w ostatnich {analysis_hours}h lub błąd]")
+            else: print("[BŁĄD POBIERANIA LOGÓW]")
+            print(f"--- Koniec danych dla: {name} ---")
+
+
+    end_time = datetime.now()
+    print(f"\n--- Zakończono ---")
+    print(f"Całkowity czas wykonania: {end_time - start_time}")
