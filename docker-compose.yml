@@ -6,7 +6,7 @@ services:
     ports:
       - "8070:80"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
+      - /var/snap/docker/common/var-lib-docker/volumes/portainer_data/_data/compose/28/nginx/conf.d:/etc/nginx/conf.d
     depends_on:
       - app1
       - app2
