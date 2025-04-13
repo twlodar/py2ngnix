@@ -5,16 +5,13 @@
 
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim-bookworm
-
 # Set the working directory in the container
 WORKDIR /app
-
 # Copy the requirements file (if you have one)
 # COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt
 # RUN pip install --no-cache-dir -r requirements.txt
-
 # Install required packages (if no requirements.txt)
 RUN pip install --no-cache-dir paramiko google-generativeai PyYAML Flask Flask-CORS
 
