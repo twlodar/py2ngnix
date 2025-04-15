@@ -13,7 +13,7 @@ from flask_cors import CORS # Dodano CORS
 
 # --- Konfiguracja ---
 
-SECRETS_FILE = "secrets.yaml"
+SECRETS_FILE = "secrets.yaml"  
 SECRET_GEMINI_FILE = "secret_gemini.yaml"
 #GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # GEMINI_API_KEY = "Wklej_Tutaj_Swój_Klucz_API_Google_Gemini"
