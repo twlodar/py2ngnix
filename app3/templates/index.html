@@ -1,0 +1,21 @@
+      
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Analiza Logów Routera</title>
+</head>
+<body>
+    <h1>Analiza Logów Routera z Gemini</h1>
+    {% if error %}
+    <p style="color: red;">{{ error }}</p>
+    {% endif %}
+    <form action="/analyze" method="post">
+        <label for="analysis_hours">Okres analizy logów (godziny wstecz, 0 = wszystkie logi):</label>
+        <input type="number" id="analysis_hours" name="analysis_hours" value="0" required>
+        <button type="submit">Analizuj</button>
+    </form>
+</body>
+</html>
+
+    
