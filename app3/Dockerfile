@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir paramiko google-generativeai PyYAML Flask Flask-C
 COPY router_logs_analyzer.py .
 COPY secrets.yaml .
 COPY secret_gemini.yaml .
+COPY templates ./templates  # Copy the templates folder
 
 # Expose the port the Flask app will run on (default: 5000)
 EXPOSE 5000
