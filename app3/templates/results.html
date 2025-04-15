@@ -1,0 +1,44 @@
+      
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Wyniki Analizy Logów Routera</title>
+    <style>
+        body { font-family: monospace; white-space: pre-wrap; }
+        .summary { font-weight: bold; }
+        .gemini-analysis { margin-top: 20px; border: 1px solid #ccc; padding: 10px; }
+        .raw-data { margin-top: 20px; border: 1px solid #eee; padding: 10px; background-color: #f9f9f9; }
+        .error { color: red; }
+        .warning { color: orange; }
+        .info { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Wyniki Analizy Logów Routera</h1>
+
+    <h2>Podsumowanie Pobierania Danych:</h2>
+    <p class="summary">{{ analysis_summary|nl2br }}</p>
+
+    {% if gemini_api_key_available %}
+    <div class="gemini-analysis">
+        <h2>Analiza Gemini (dla ostatnich {{ analysis_hours }} godzin):</h2>
+        <p>{{ gemini_analysis|nl2br }}</p>
+    </div>
+    {% else %}
+    <div class="warning">
+        <h2>Analiza Gemini niedostępna</h2>
+        <p>Klucz API Gemini nie został skonfigurowany. Poniżej surowe dane:</p>
+    </div>
+    {% endif %}
+
+    <div class="raw-data">
+        <h2>Surowe Dane z Routerów (Filtrowane dla {{ analysis_hours }} godzin):</h2>
+        <p>{{ raw_data|nl2br }}</p>
+    </div>
+
+    <a href="/">Powrót do formularza</a>
+</body>
+</html>
+
+    
