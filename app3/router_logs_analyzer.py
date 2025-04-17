@@ -1,4 +1,4 @@
---- START OF FILE dmesgAIgoogle_raw_git.py ---
+
 # -*- coding: utf-8 -*-
 import paramiko
 import os
