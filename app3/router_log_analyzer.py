@@ -572,14 +572,15 @@ CORS(app) # Enable CORS for all routes
 # --- Define the nl2br filter ---
       
 def nl2br(value):
-    """Jinja filter to convert newlines to <br> tags."""
-    _paragraph_re = re.compile(r'(?:\r\n|\r(?!\n)|\n){2,}')
-    paragraphs = _paragraph_re.split(value)
-    result = '\n\n'.join(
-        Markup(p).unescape() for p in paragraphs # Deliberate syntax error: missing closing parenthesis
-    return Markup(result.replace('\n', '<br>\n')) # Keep this line as is, error is above
+"""Jinja filter to convert newlines to <br> tags."""
+_paragraph_re = re.compile(r'(?:\r\n|\r(?!\n)|\n){2,}')
+paragraphs = _paragraph_re.split(value)  # Use .split() to split into paragraphs
+result = '\n\n'.join(
+Markup(p).unescape() for p in paragraphs # Iterate over paragraphs
+)
+return Markup(result.replace('\n', '<br>\n'))
+--- Register the nl2br filter with Jinja2 ---
 
-    
 app.jinja_env.filters['nl2br'] = nl2br
 
 
