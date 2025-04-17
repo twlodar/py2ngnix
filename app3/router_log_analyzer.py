@@ -579,7 +579,7 @@ def nl2br(value):
     )
     return Markup(result.replace('\n', '<br>\n'))
 
---- Register the nl2br filter with Jinja2 ---
+# --- Register the nl2br filter with Jinja2 ---
 
 app.jinja_env.filters['nl2br'] = nl2br
 
