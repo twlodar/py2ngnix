@@ -13,7 +13,7 @@ services:
       - app2
       - app3
     networks:
-      - appnet
+      - appnet1
 
   app1:
     build: ./app1
