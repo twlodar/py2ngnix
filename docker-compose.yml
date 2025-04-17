@@ -5,7 +5,7 @@ services:
       - "8877:80"
     volumes:
       #- /nginx/conf.d:/etc/nginx/conf.d  # Mount Nginx config from ./nginx/conf.d   ????
-      - /var/snap/docker/common/var-lib-docker/volumes/portainer_data/_data/compose/33/nginx/conf.d:/etc/nginx/conf.d
+      - /var/snap/docker/common/var-lib-docker/volumes/portainer_data/_data/compose/34/nginx/conf.d:/etc/nginx/conf.d
       
       
     depends_on:
