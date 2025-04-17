@@ -23,12 +23,7 @@ services:
       - appnet    
     volumes:
       - ~/.ssh:/root/.ssh:ro   # <-- SSH key mounted here  
-  ssh-python:
-    build: .
-    volumes:
-      - ~/.ssh:/root/.ssh:ro
-    networks:
-      - appnet
+
   app1:
     build: ./app1
     networks:
