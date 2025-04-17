@@ -1,3 +1,4 @@
+--- START OF FILE dmesgAIgoogle_raw_git.py ---
 # -*- coding: utf-8 -*-
 import paramiko
 import os
@@ -158,11 +159,12 @@ def get_ssh_connection(hostname, port, username, key_path=None, password=None):
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     try:
-        print(f"Łączenie z {hostname}:{port} jako {username}...")
+        print(f"Łączenie z {hostname}:{port} jako {username}...") # LOGGING
+        print(f"  Host: {hostname}, Port: {port}, User: {username}, Key Path: {key_path}, Password Provided: {bool(password)}") # LOGGING
         auth_method = "niczego"
         if key_path:
             auth_method = f"klucza ({os.path.basename(key_path)})"
-            print(f"Używam klucza: {key_path}")
+            print(f"Używam klucza: {key_path}") # LOGGING
             if not os.path.isfile(key_path):
                  raise FileNotFoundError(f"Plik klucza prywatnego nie istnieje lub nie jest plikiem: {key_path}")
             key = None
@@ -171,48 +173,55 @@ def get_ssh_connection(hostname, port, username, key_path=None, password=None):
             for key_type in key_types:
                  try:
                       key = key_type.from_private_key_file(key_path)
-                      print(f"  Pomyślnie wczytano klucz typu: {key_type.__name__}")
+                      print(f"  Pomyślnie wczytano klucz typu: {key_type.__name__}") # LOGGING
                       break
                  except paramiko.PasswordRequiredException:
                       key_password = getpass.getpass(f"Podaj hasło dla klucza SSH {key_path}: ")
                       try:
                             key = key_type.from_private_key_file(key_path, password=key_password)
-                            print(f"  Pomyślnie wczytano zaszyfrowany klucz typu: {key_type.__name__}")
+                            print(f"  Pomyślnie wczytano zaszyfrowany klucz typu: {key_type.__name__}") # LOGGING
                             break
                       except Exception as e_pwd:
                             last_exception = e_pwd
-                            print(f"  Nie udało się wczytać klucza {key_type.__name__} z hasłem.")
+                            print(f"  Nie udało się wczytać klucza {key_type.__name__} z hasłem.") # LOGGING
                  except Exception as e:
                       last_exception = e
             if key is None:
-                 print(f"BŁĄD: Nie można wczytać klucza prywatnego {key_path} jako żadnego ze znanych typów.")
+                 print(f"BŁĄD: Nie można wczytać klucza prywatnego {key_path} jako żadnego ze znanych typów.") # LOGGING
                  if last_exception:
-                     print(f"  Ostatni błąd: {last_exception}")
+                     print(f"  Ostatni błąd: {last_exception}") # LOGGING
                  return None
 
-            ssh_client.connect(hostname=hostname, port=port, username=username, pkey=key, timeout=15)
+            print(f"Próba połączenia SSH z kluczem: {auth_method}") # LOGGING
+            ssh_client.connect(hostname=hostname, port=port, username=username, pkey=key, timeout=15) # LOGGING - Keep timeout
+            print(f"Połączono z {hostname} używając {auth_method}") # LOGGING
 
         elif password:
             auth_method = "hasła"
-            print("Używam hasła z konfiguracji.")
-            ssh_client.connect(hostname=hostname, port=port, username=username, password=password, timeout=15)
+            print("Używam hasła z konfiguracji.") # LOGGING
+            print(f"Próba połączenia SSH z hasłem: {auth_method}") # LOGGING
+            ssh_client.connect(hostname=hostname, port=port, username=username, password=password, timeout=15) # LOGGING - Keep timeout
+            print(f"Połączono z {hostname} używając {auth_method}") # LOGGING
         else:
             auth_method = "hasła (wprowadzonego ręcznie)"
-            print(f"W konfiguracji dla {username}@{hostname} nie podano hasła ani ścieżki klucza.")
+            print(f"W konfiguracji dla {username}@{hostname} nie podano hasła ani ścieżki klucza.") # LOGGING
+            print(f"Próba połączenia SSH z hasłem: {auth_method}") # LOGGING
             password_prompt = getpass.getpass(f"Podaj hasło SSH dla {username}@{hostname}: ")
-            ssh_client.connect(hostname=hostname, port=port, username=username, password=password_prompt, timeout=15)
+            ssh_client.connect(hostname=hostname, port=port, username=username, password=password_prompt, timeout=15) # LOGGING - Keep timeout
+            print(f"Połączono z {hostname} używając {auth_method}") # LOGGING
 
-        print(f"Połączono z {hostname} używając {auth_method}")
+        print(f"Połączono z {hostname} używając {auth_method}") # LOGGING - Redundant line, already present above in each auth block
         return ssh_client
 
-    except paramiko.AuthenticationException:
-        print(f"BŁĄD: Uwierzytelnienie nie powiodło się dla {username}@{hostname} przy użyciu {auth_method}.")
-    except paramiko.SSHException as sshException:
-        print(f"BŁĄD: Nie można ustanowić połączenia SSH z {hostname}: {sshException}")
-    except FileNotFoundError as e:
-        print(f"BŁĄD: {e}")
-    except Exception as e:
-        print(f"BŁĄD: Wystąpił nieoczekiwany błąd podczas łączenia z {hostname}: {e}")
+    except paramiko.AuthenticationException as auth_e: # LOGGING - Specific exception
+        print(f"BŁĄD: Uwierzytelnienie nie powiodło się dla {username}@{hostname} przy użyciu {auth_method}.") # LOGGING
+        print(f"  Szczegóły błędu uwierzytelnienia: {auth_e}") # LOGGING
+    except paramiko.SSHException as sshException: # LOGGING - Specific exception
+        print(f"BŁĄD: Nie można ustanowić połączenia SSH z {hostname}: {sshException}") # LOGGING
+    except FileNotFoundError as e: # LOGGING - Specific exception
+        print(f"BŁĄD: {e}") # LOGGING
+    except Exception as e: # LOGGING - Catch-all exception
+        print(f"BŁĄD: Wystąpił nieoczekiwany błąd podczas łączenia z {hostname}: {e}") # LOGGING
 
     return None
 
@@ -222,18 +231,26 @@ def execute_ssh_command(ssh_client, command):
         return None, "Klient SSH nie jest połączony.", -1
 
     try:
-        stdin, stdout, stderr = ssh_client.exec_command(command, timeout=30)
+        hostname_info = "nieznany host"
+        try: hostname_info = ssh_client.get_transport().getpeername()[0]
+        except Exception: pass
+        print(f"Wykonanie komendy '{command}' na {hostname_info}...") # LOGGING
+        stdin, stdout, stderr = ssh_client.exec_command(command, timeout=30) # LOGGING - Keep timeout
         exit_status = stdout.channel.recv_exit_status()
         stdout_bytes = stdout.read()
         stderr_bytes = stderr.read()
         stdout_data = stdout_bytes.decode('utf-8', errors='replace').strip()
         stderr_data = stderr_bytes.decode('utf-8', errors='replace').strip()
+        print(f"  Komenda zakończona. Status: {exit_status}") # LOGGING
+        if stdout_data: print(f"  Stdout:\n{stdout_data}") # LOGGING
+        if stderr_data: print(f"  Stderr:\n{stderr_data}") # LOGGING
         return stdout_data, stderr_data, exit_status
     except Exception as e:
         hostname_info = "nieznanego hosta"
         try: hostname_info = ssh_client.get_transport().getpeername()[0]
         except Exception: pass
-        print(f"BŁĄD: Błąd podczas wykonywania komendy '{command}' na {hostname_info}: {e}")
+        print(f"BŁĄD: Błąd podczas wykonywania komendy '{command}' na {hostname_info}: {e}") # LOGGING
+        print(f"  Szczegóły błędu: {e}") # LOGGING
         return None, str(e), -1
 
 def filter_dmesg_logs(raw_logs, estimated_boot_time_unix, hours_ago):
@@ -573,14 +590,13 @@ CORS(app) # Enable CORS for all routes
 def nl2br(value):
     """Jinja filter to convert newlines to <br> tags."""
     _paragraph_re = re.compile(r'(?:\r\n|\r(?!\n)|\n){2,}')
-    paragraphs = _paragraph_re.split(value)  # Correct: .split(value)
+    paragraphs = _paragraph_re.split(value)  # Use .split() to split into paragraphs
     result = '\n\n'.join(
-        Markup(p).unescape() for p in paragraphs
+        Markup(p).unescape() for p in paragraphs # Iterate over paragraphs
     )
     return Markup(result.replace('\n', '<br>\n'))
 
 # --- Register the nl2br filter with Jinja2 ---
-
 app.jinja_env.filters['nl2br'] = nl2br
 
 
@@ -610,7 +626,7 @@ def analyze():
     for i, config in enumerate(router_configs):
         name = config['name']
         role = config['role']
-        print(f"\n--- Przetwarzanie routera {i+1}/{len(router_configs)}: {name} ({role}) ---")
+        print(f"\n--- Przetwarzanie routera {i+1}/{len(router_configs)}: {name} ({role}) ---") # LOGGING
         ssh = None
         router_info = {'config': config, 'logs': None, 'raw_log_length': 0, 'filtered_log_length': 0, 'current_unix_time': None, 'uptime_seconds': None, 'estimated_boot_time_unix': None, 'error': None}
         try:
@@ -626,36 +642,43 @@ def analyze():
                 router_specific_data = get_router_data(ssh, analysis_hours)
                 router_info.update(router_specific_data)
             else:
-                router_info['error'] = "Nie udało się nawiązać połączenia SSH."
+                router_info['error'] = "Nie udało się nawiązać połączenia SSH." # LOGGING - Keep error message
 
         except Exception as e:
-            error_msg = f"Nieoczekiwany błąd krytyczny podczas przetwarzania {name}: {e}"
-            print(f"KRYTYCZNY BŁĄD: {error_msg}")
-            router_info['error'] = error_msg
+            error_msg = f"Nieoczekiwany błąd krytyczny podczas przetwarzania {name}: {e}" # LOGGING - Keep error message
+            print(f"KRYTYCZNY BŁĄD: {error_msg}") # LOGGING
+            router_info['error'] = error_msg # LOGGING - Keep error message
         finally:
              all_router_data[name] = router_info
 
-    print("\n--- Zamykanie połączeń SSH ---")
+    print("\n--- Zamykanie połączeń SSH ---") # LOGGING
+    closed_count = 0
     for name, ssh_client in connections.items():
         if ssh_client:
             try:
                 ssh_client.close()
-                print(f"Zamknięto połączenie z {name}")
+                print(f"Zamknięto połączenie z {name}") # LOGGING
+                closed_count += 1
             except Exception as e:
-                print(f"Błąd podczas zamykania połączenia z {name}: {e}")
+                print(f"Błąd podczas zamykania połączenia z {name}: {e}") # LOGGING
+    print(f"Zamknięto {closed_count} z {len(connections)} aktywnych połączeń.") # LOGGING
 
-    print("\n--- Podsumowanie Pobierania Danych ---")
-    logs_collected_count = 0
-    filtered_logs_present = 0
+
+    print("\n--- Podsumowanie Pobierania Danych ---") # LOGGING
+    successful_connections = len(connections)
     data_collected_count = 0
+    logs_collected_count = 0 # Liczba routerów, z których pobrano JAKIEKOLWIEK logi (nawet puste po filtracji)
+    filtered_logs_present = 0 # Liczba routerów, które mają NIEPUSTE logi po filtracji
     time_data_collected_count = 0
 
     sorted_names_report = sorted(all_router_data.keys(), key=lambda name: (all_router_data[name]['config']['role'] != 'main', name))
 
     for name in sorted_names_report:
         data = all_router_data[name]
-        status = "[OK]" if not data.get('error') or "Brak wpisów dmesg" in data.get('error','') else "[BŁĄD]"
+        status = "[OK]" if not data.get('error') or "Brak wpisów dmesg" in data.get('error','') else "[BŁĄD]" # Traktuj "brak wpisów" jako OK
+        # Log status: Pobrano (nawet jeśli puste po filtracji), Brak/Błąd jeśli nie pobrano wcale
         log_status = "Pobrano" if data.get('logs') is not None else "Brak/Błąd"
+        # Filtered log status: Obecne jeśli niepuste, Puste/Brak jeśli puste lub błąd
         filtered_status = "Obecne" if data.get('logs') else "Puste/Brak"
         time_status = "Pełne" if data.get('current_unix_time') and data.get('uptime_seconds') is not None and data.get('estimated_boot_time_unix') is not None else "Niepełne/Brak"
         error_msg = f" Info/Błąd: {data['error']}" if data.get('error') else ""
@@ -666,7 +689,7 @@ def analyze():
             data_collected_count += 1
         if data.get('logs') is not None:
              logs_collected_count += 1
-        if data.get('logs'):
+        if data.get('logs'): # Czy są niepuste logi po filtracji
              filtered_logs_present += 1
         if time_status == "Pełne":
              time_data_collected_count +=1
