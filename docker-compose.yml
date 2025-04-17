@@ -6,8 +6,6 @@ services:
     volumes:
       #- /nginx/conf.d:/etc/nginx/conf.d  # Mount Nginx config from ./nginx/conf.d   ????
       - /var/snap/docker/common/var-lib-docker/volumes/portainer_data/_data/compose/35/nginx/conf.d:/etc/nginx/conf.d
-      
-      
     depends_on:
       - app1
       - app2
@@ -15,15 +13,6 @@ services:
     networks:
       - appnet
 
-  app1:
-    build: ./app1
-    networks:
-      - appnet
-
-  app2:
-    build: ./app2
-    networks:
-      - appnet
   app3:
     build:
       context: ./app3
@@ -32,7 +21,23 @@ services:
     #build: ./app3
     networks:
       - appnet    
-
+    volumes:
+      - ~/.ssh:/root/.ssh:ro   # <-- SSH key mounted here  
+  ssh-python:
+    build: .
+    volumes:
+      - ~/.ssh:/root/.ssh:ro
+    networks:
+      - appnet
+  app1:
+    build: ./app1
+    networks:
+      - appnet
+  app2:
+    build: ./app2
+    networks:
+      - appnet
+     
 networks:
   appnet:
     driver: bridge
