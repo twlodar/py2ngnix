@@ -26,8 +26,8 @@ services:
       - appnet
   app3:
     build: ./app3
-      args:
-        BUILD_VERSION: "1.0"  # zmień za każdym raze
+    args:
+      BUILD_VERSION: "1.0"  # zmień za każdym raze
     networks:
       - appnet    
 
