@@ -22,7 +22,7 @@ services:
     networks:
       - appnet    
     volumes:
-      - ~/.ssh:/root/.ssh:ro   # <-- SSH key mounted here  
+      - /home/lab/.ssh:/root/.ssh:ro   # <-- SSH key mounted here  
 
   app1:
     build: ./app1
