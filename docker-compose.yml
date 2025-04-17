@@ -25,8 +25,11 @@ services:
     networks:
       - appnet
   app3:
-    build: ./app3
-
+    build:
+      context: ./app3
+      args:
+        CACHE_BUSTER: "1.0.1"  # zmieniaj ten numer przy każdej aktualizacji
+    #build: ./app3
     networks:
       - appnet    
 
