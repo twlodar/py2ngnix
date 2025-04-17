@@ -9,16 +9,16 @@ services:
       
       
     depends_on:
-      - app1
+      #- app1
       - app2
       - app3
     networks:
       - appnet
 
-  app1:
-    build: ./app1
-    networks:
-      - appnet
+  #app1:
+  #  build: ./app1
+  #  networks:
+  #    - appnet
 
   app2:
     build: ./app2
