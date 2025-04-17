@@ -1,3 +1,4 @@
+--- START OF FILE dmesgAIgoogle_raw_git.py ---
 # -*- coding: utf-8 -*-
 import paramiko
 import os
@@ -10,10 +11,11 @@ import time
 import re
 from flask import Flask, request, jsonify, render_template # Dodano Flask
 from flask_cors import CORS # Dodano CORS
+from jinja2 import Markup # Import Markup from jinja2
 
 # --- Konfiguracja ---
 
-SECRETS_FILE = "secrets.yaml"  
+SECRETS_FILE = "secrets.yaml"
 SECRET_GEMINI_FILE = "secret_gemini.yaml"
 #GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # GEMINI_API_KEY = "Wklej_Tutaj_Swój_Klucz_API_Google_Gemini"
@@ -567,6 +569,19 @@ def analyze_logs_with_gemini(api_key, router_data, analysis_hours):
 
 app = Flask(__name__)
 CORS(app) # Enable CORS for all routes
+
+# --- Define the nl2br filter ---
+def nl2br(value):
+    """Jinja filter to convert newlines to <br> tags."""
+    _paragraph_re = re.compile(r'(?:\r\n|\r(?!\n)|\n){2,}')
+    result = '\n\n'.join(
+        Markup(p).unescape() for p in _paragraph_re.splitlines(value)
+    )
+    return Markup(result.replace('\n', '<br>\n'))
+
+# --- Register the nl2br filter with Jinja2 ---
+app.jinja_env.filters['nl2br'] = nl2br
+
 
 @app.route('/', methods=['GET'])
 def index():
