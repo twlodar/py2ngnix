@@ -13,7 +13,7 @@ WORKDIR /app
 # Install any needed packages specified in requirements.txt
 # RUN pip install --no-cache-dir -r requirements.txt
 # Install required packages (if no requirements.txt)
-RUN pip install --no-cache-dir paramiko google-generativeai PyYAML Flask Flask-CORS
+RUN pip install --no-cache-dir paramiko google-generativeai PyYAML Flask Flask-CORS jinja2
 
 # Copy the Python script and configuration files into the container
 COPY router_logs_analyzer.py .
