@@ -11,7 +11,7 @@ import time
 import re
 from flask import Flask, request, jsonify, render_template # Dodano Flask
 from flask_cors import CORS # Dodano CORS
-from jinja2 import Markup # Import Markup from jinja2
+from jinja2.utils import Markup # Import Markup from jinja2
 
 # --- Konfiguracja ---
 
