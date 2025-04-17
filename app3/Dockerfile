@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir paramiko google-generativeai PyYAML Flask Flask-C
 #RUN pip install --no-cache-dir --upgrade jinja2  # Add this line to upgrade Jinja2
 
 # Copy the Python script and configuration files into the container
-COPY router_logs_analyzer.py .
+COPY router_log_analyzer.py .
 COPY secrets.yaml .
 COPY secret_gemini.yaml .
 COPY ./templates ./templates  
@@ -30,4 +30,4 @@ EXPOSE 5000
 # ENV GEMINI_API_KEY="YOUR_GEMINI_API_KEY"  #  <--  DO NOT HARDCODE!  Use docker run -e ...
 
 # Command to run the Flask app
-CMD ["python", "router_logs_analyzer.py"]
+CMD ["python", "router_log_analyzer.py"]
