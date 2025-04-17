@@ -14,7 +14,7 @@ WORKDIR /app
 # RUN pip install --no-cache-dir -r requirements.txt
 # Install required packages (if no requirements.txt)
 RUN pip install --no-cache-dir paramiko google-generativeai PyYAML Flask Flask-CORS markupsafe
-#jinja2 ewqe241242
+#jinja2 ewqe241242rwer
 #RUN pip install --no-cache-dir --upgrade jinja2  # Add this line to upgrade Jinja2
 
 # Copy the Python script and configuration files into the container
