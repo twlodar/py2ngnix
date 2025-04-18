@@ -1,33 +1,9 @@
 FROM python:3.12-slim
-#WORKDIR /app
-#COPY app.py .
-#CMD ["python", "app.py"]
 
-# Use an official Python runtime as a parent image
-#FROM python:3.11-slim-bookworm
-# Set the working directory in the container
 WORKDIR /app
-# Copy the requirements file (if you have one)
-# COPY requirements.txt .
-
-# Install any needed packages specified in requirements.txt
-# RUN pip install --no-cache-dir -r requirements.txt
-# Install required packages (if no requirements.txt)
-# Instalacja ssh-client z zależnościami
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        openssh-client \
-        ca-certificates \
-        gnupg \
-        dirmngr && \
-    rm -rf /var/lib/apt/lists/*
-
 
 RUN pip install --no-cache-dir paramiko google-generativeai PyYAML Flask Flask-CORS markupsafe
-#jinja2 ewqe241242rwer
-#RUN pip install --no-cache-dir --upgrade jinja2  # Add this line to upgrade Jinja2
 
-# Copy the Python script and configuration files into the container
 COPY router_log_analyzer.py .
 COPY secrets.yaml .
 COPY secret_gemini.yaml .
