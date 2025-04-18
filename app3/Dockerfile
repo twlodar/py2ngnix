@@ -13,7 +13,7 @@ WORKDIR /app
 # Install any needed packages specified in requirements.txt
 # RUN pip install --no-cache-dir -r requirements.txt
 # Install required packages (if no requirements.txt)
-RUN apk add --no-cache openssh-client
+RUN apt-get update && apt-get install -y openssh-client && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir paramiko google-generativeai PyYAML Flask Flask-CORS markupsafe
 #jinja2 ewqe241242rwer
 #RUN pip install --no-cache-dir --upgrade jinja2  # Add this line to upgrade Jinja2
