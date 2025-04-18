@@ -332,8 +332,10 @@ def get_router_data(ssh_client, router_config):
     }
 
     try:
+        logger.error("Log 1") # LOGGING
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        logger.error(router_config['host'], router_config['user'], router_config['port'], router_config['key_path'])
         ssh_client.connect(hostname=router_config['host'], port=router_config['port'], username=router_config['user'], pkey=paramiko.RSAKey.from_private_key_file(router_config['key_path']), timeout=15)
         
         # Pobierz logi dmesg
