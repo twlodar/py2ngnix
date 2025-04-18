@@ -12,7 +12,7 @@ import re
 from flask import Flask, request, jsonify, render_template # Dodano Flask
 from flask_cors import CORS # Dodano CORS
 from markupsafe import Markup # Import Markup from jinja2
-
+import subprocess
 # --- Konfiguracja ---
 
 SECRETS_FILE = "secrets.yaml"
@@ -226,31 +226,18 @@ def get_ssh_connection(hostname, port, username, key_path=None, password=None):
     return None
 
 def execute_ssh_command(ssh_client, command):
-    """Wykonuje komendę SSH i zwraca stdout, stderr oraz kod wyjścia."""
+       """Wykonuje komendę SSH i zwraca stdout, stderr oraz kod wyjścia."""
     if not ssh_client:
         return None, "Klient SSH nie jest połączony.", -1
 
     try:
-        hostname_info = "nieznany host"
-        try: hostname_info = ssh_client.get_transport().getpeername()[0]
-        except Exception: pass
-        print(f"Wykonanie komendy '{command}' na {hostname_info}...") # LOGGING
-        stdin, stdout, stderr = ssh_client.exec_command(command, timeout=30) # LOGGING - Keep timeout
+        stdin, stdout, stderr = ssh_client.exec_command(command, timeout=30)
         exit_status = stdout.channel.recv_exit_status()
-        stdout_bytes = stdout.read()
-        stderr_bytes = stderr.read()
-        stdout_data = stdout_bytes.decode('utf-8', errors='replace').strip()
-        stderr_data = stderr_bytes.decode('utf-8', errors='replace').strip()
-        print(f"  Komenda zakończona. Status: {exit_status}") # LOGGING
-        if stdout_data: print(f"  Stdout:\n{stdout_data}") # LOGGING
-        if stderr_data: print(f"  Stderr:\n{stderr_data}") # LOGGING
+        stdout_data = stdout.read().decode('utf-8', errors='replace').strip()
+        stderr_data = stderr.read().decode('utf-8', errors='replace').strip()
         return stdout_data, stderr_data, exit_status
     except Exception as e:
-        hostname_info = "nieznanego hosta"
-        try: hostname_info = ssh_client.get_transport().getpeername()[0]
-        except Exception: pass
-        print(f"BŁĄD: Błąd podczas wykonywania komendy '{command}' na {hostname_info}: {e}") # LOGGING
-        print(f"  Szczegóły błędu: {e}") # LOGGING
+        print(f"BŁĄD: Błąd podczas wykonywania komendy '{command}': {e}")
         return None, str(e), -1
 
 def filter_dmesg_logs(raw_logs, estimated_boot_time_unix, hours_ago):
@@ -302,112 +289,39 @@ def filter_dmesg_logs(raw_logs, estimated_boot_time_unix, hours_ago):
     return "\n".join(filtered_lines)
 
 
-def get_router_data(ssh_client, hours_ago_for_filter):
-    """Pobiera logi dmesg (i filtruje je), czas i uptime z połączonego urządzenia."""
+def get_router_data(ssh_client, router_config):
+    """Pobiera logi dmesg i inne dane z routera."""
     data = {
-        'logs': None,
-        'raw_log_length': 0,
-        'filtered_log_length': 0,
-        'current_unix_time': None,
-        'uptime_seconds': None,
+        'name': router_config['name'],
+        'role': router_config['role'],
+        'host': router_config['host'],
+        'port': router_config['port'],
+        'user': router_config['user'],
+        'ssh_logs': "",
+        'dmesg_logs': "",
+        'uptime': "",
         'error': None,
-        'estimated_boot_time_unix': None
     }
-    hostname = "Nieznany host"
+
     try:
-         if ssh_client and ssh_client.get_transport():
-              hostname = ssh_client.get_transport().getpeername()[0]
-    except Exception: pass
-
-    print(f"Pobieranie czasu systemowego (Unix timestamp) z {hostname}...")
-    date_out, date_err, date_status = execute_ssh_command(ssh_client, 'date +%s')
-    if date_status == 0 and date_out:
-        try:
-            data['current_unix_time'] = int(date_out)
-            dt_object_utc = datetime.fromtimestamp(data['current_unix_time'], timezone.utc)
-            print(f"  Sukces: czas Unix = {data['current_unix_time']} ({dt_object_utc.strftime('%Y-%m-%d %H:%M:%S %Z')})")
-        except ValueError:
-            err_msg = f"Nie udało się sparsować wyniku 'date +%s' dla {hostname}: '{date_out}'"
-            print(f"BŁĄD: {err_msg}")
-            if not data['error']: data['error'] = err_msg
-    else:
-        err_msg = f"Nie można pobrać czasu z {hostname}. Status: {date_status}, Błąd: {date_err}"
-        print(f"BŁĄD: {err_msg}")
-        if not data['error']: data['error'] = err_msg
-
-    print(f"Pobieranie uptime z {hostname}...")
-    uptime_out, uptime_err, uptime_status = execute_ssh_command(ssh_client, 'cat /proc/uptime')
-    if uptime_status == 0 and uptime_out:
-        try:
-            uptime_str = uptime_out.split()[0]
-            data['uptime_seconds'] = int(float(uptime_str))
-            print(f"  Sukces: uptime = {data['uptime_seconds']} sekund")
-        except (ValueError, IndexError):
-            err_msg = f"Nie udało się sparsować wyniku '/proc/uptime' dla {hostname}: '{uptime_out}'"
-            print(f"BŁĄD: {err_msg}")
-            if not data['error']: data['error'] = err_msg
-    else:
-        print(f"  Nie udało się odczytać /proc/uptime dla {hostname}, sprawdzanie komendy 'uptime'...")
-        uptime_cmd_out, uptime_cmd_err, uptime_cmd_status = execute_ssh_command(ssh_client, 'uptime')
-        if uptime_cmd_status == 0 and uptime_cmd_out:
-             print(f"  Wynik komendy 'uptime' dla {hostname}: {uptime_cmd_out}")
-             if not data['error']: data['error'] = "Nie udało się odczytać /proc/uptime, komenda 'uptime' dostępna, ale nie sparsowana."
-        else:
-             err_msg = f"Nie można pobrać uptime z {hostname} ani z /proc/uptime, ani z komendy 'uptime'. Błąd: {uptime_err} / {uptime_cmd_err}"
-             print(f"BŁĄD: {err_msg}")
-             if not data['error']: data['error'] = err_msg
-
-    if data['current_unix_time'] and data['uptime_seconds'] is not None:
-         data['estimated_boot_time_unix'] = data['current_unix_time'] - data['uptime_seconds']
-         est_boot_dt_utc = datetime.fromtimestamp(data['estimated_boot_time_unix'], timezone.utc)
-         print(f"  Szacowany czas startu dla {hostname}: {data['estimated_boot_time_unix']} ({est_boot_dt_utc.strftime('%Y-%m-%d %H:%M:%S %Z')})")
-    else:
-         print(f"  Nie można obliczyć szacowanego czasu startu dla {hostname} (brak czasu i/lub uptime).")
-
-    print(f"Pobieranie logów dmesg z {hostname}...")
-    raw_dmesg_logs = None
-    logs_std, err_std, status_std = execute_ssh_command(ssh_client, 'dmesg')
-    if status_std == 0 and logs_std:
-        print("  Sukces: pobrano surowe logi 'dmesg'.")
-        raw_dmesg_logs = logs_std
-    else:
-        print("  Komenda 'dmesg' nie powiodła się, próba 'dmesg -T'...")
-        logs_T, err_T, status_T = execute_ssh_command(ssh_client, 'dmesg -T')
-        if status_T == 0 and logs_T:
-            print("  Sukces: użyto 'dmesg -T' (logi nie będą filtrowane czasowo).")
-            raw_dmesg_logs = logs_T
-            filter_warn = "Użyto dmesg -T, filtrowanie czasowe niemożliwe."
-            data['error'] = f"{data.get('error', '')} {filter_warn}".strip()
-        else:
-            error_details = f"dmesg (status {status_std}): {err_std}. dmesg -T (status {status_T}): {err_T}"
-            err_msg = f"Nie można pobrać logów dmesg z {hostname}. Szczegóły: {error_details}"
-            print(f"BŁĄD: {err_msg}")
-            if not data['error']: data['error'] = err_msg
-
-    if raw_dmesg_logs and logs_std:
-        data['raw_log_length'] = len(raw_dmesg_logs)
-        data['logs'] = filter_dmesg_logs(raw_dmesg_logs, data['estimated_boot_time_unix'], hours_ago_for_filter)
-        data['filtered_log_length'] = len(data['logs'])
-        if not data['logs'] and hours_ago_for_filter > 0 and not data['error']:
-            data['error'] = f"Brak wpisów dmesg w ciągu ostatnich {hours_ago_for_filter} godzin."
-    elif raw_dmesg_logs and logs_T:
-        data['logs'] = raw_dmesg_logs
-        data['raw_log_length'] = len(raw_dmesg_logs)
-        data['filtered_log_length'] = len(raw_dmesg_logs)
-        print("  Logi z 'dmesg -T' nie zostały przefiltrowane czasowo.")
-
-    if data['logs'] and (data['current_unix_time'] is None or data['uptime_seconds'] is None):
-        time_err_msg = "Nie udało się pobrać pełnych danych czasowych (czas i/lub uptime)."
-        if data['error'] and "Nie można wykonać 'dmesg'" not in data['error']:
-             data['error'] += " " + time_err_msg
-        elif not data['error']:
-             data['error'] = time_err_msg
-        print(f"UWAGA: {time_err_msg} dla {hostname}")
-
-    if not data['logs'] and not data['error']:
-         data['error'] = "Nie udało się pobrać logów dmesg lub logi są puste."
-
-    print(f"Zakończono pobieranie danych dla {hostname}.")
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_client.connect(hostname=router_config['host'], port=router_config['port'], username=router_config['user'], pkey=paramiko.RSAKey.from_private_key_file(router_config['key_path']), timeout=15)
+        
+        # Pobierz logi dmesg
+        dmesg_output, _, _ = execute_ssh_command(ssh_client, "dmesg")
+        data['dmesg_logs'] = dmesg_output
+        
+        # Pobierz uptime
+        uptime_output, _, _ = execute_ssh_command(ssh_client, "uptime")
+        data['uptime'] = uptime_output
+        
+        data['ssh_logs'] = "Połączenie pomyślne."
+        ssh_client.close()
+    except Exception as e:
+        data['ssh_logs'] = f"Błąd połączenia: {e}"
+        data['error'] = str(e)
+        
     return data
 
 def analyze_logs_with_gemini(api_key, router_data, analysis_hours):
@@ -606,138 +520,20 @@ def index():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    analysis_hours = -1
-    try:
-        analysis_hours = int(request.form['analysis_hours'])
-        if analysis_hours < 0:
-            return render_template('index.html', error="Liczba godzin nie może być ujemna.")
-    except ValueError:
-        return render_template('index.html', error="Nieprawidłowa wartość godzin. Proszę podać liczbę całkowitą.")
+    analysis_hours = int(request.form['analysis_hours'])
+    router_configs = load_config()
 
-    router_configs = load_config(SECRETS_FILE)
     if not router_configs:
-        return render_template('index.html', error="Błąd konfiguracji routerów.")
+        return render_template('error.html', error="Błąd konfiguracji routerów.")
 
-    all_router_data = {}
-    connections = {}
-    analysis_summary_text = ""
-    raw_data_text = ""
+    router_data = []
+    for config in router_configs:
+        router_data.append(get_router_data(None, config))  # Pass None to get_router_data
 
-    for i, config in enumerate(router_configs):
-        name = config['name']
-        role = config['role']
-        print(f"\n--- Przetwarzanie routera {i+1}/{len(router_configs)}: {name} ({role}) ---") # LOGGING
-        ssh = None
-        router_info = {'config': config, 'logs': None, 'raw_log_length': 0, 'filtered_log_length': 0, 'current_unix_time': None, 'uptime_seconds': None, 'estimated_boot_time_unix': None, 'error': None}
-        try:
-            ssh = get_ssh_connection(
-                config['host'],
-                config['port'],
-                config['user'],
-                config.get('key_path'),
-                config.get('password')
-            )
-            if ssh:
-                connections[name] = ssh
-                router_specific_data = get_router_data(ssh, analysis_hours)
-                router_info.update(router_specific_data)
-            else:
-                router_info['error'] = "Nie udało się nawiązać połączenia SSH." # LOGGING - Keep error message
+    # Perform Gemini analysis
+    gemini_analysis = analyze_logs_with_gemini(router_data)
 
-        except Exception as e:
-            error_msg = f"Nieoczekiwany błąd krytyczny podczas przetwarzania {name}: {e}" # LOGGING - Keep error message
-            print(f"KRYTYCZNY BŁĄD: {error_msg}") # LOGGING
-            router_info['error'] = error_msg # LOGGING - Keep error message
-        finally:
-             all_router_data[name] = router_info
-
-    print("\n--- Zamykanie połączeń SSH ---") # LOGGING
-    closed_count = 0
-    for name, ssh_client in connections.items():
-        if ssh_client:
-            try:
-                ssh_client.close()
-                print(f"Zamknięto połączenie z {name}") # LOGGING
-                closed_count += 1
-            except Exception as e:
-                print(f"Błąd podczas zamykania połączenia z {name}: {e}") # LOGGING
-    print(f"Zamknięto {closed_count} z {len(connections)} aktywnych połączeń.") # LOGGING
-
-
-    print("\n--- Podsumowanie Pobierania Danych ---") # LOGGING
-    successful_connections = len(connections)
-    data_collected_count = 0
-    logs_collected_count = 0 # Liczba routerów, z których pobrano JAKIEKOLWIEK logi (nawet puste po filtracji)
-    filtered_logs_present = 0 # Liczba routerów, które mają NIEPUSTE logi po filtracji
-    time_data_collected_count = 0
-
-    sorted_names_report = sorted(all_router_data.keys(), key=lambda name: (all_router_data[name]['config']['role'] != 'main', name))
-
-    for name in sorted_names_report:
-        data = all_router_data[name]
-        status = "[OK]" if not data.get('error') or "Brak wpisów dmesg" in data.get('error','') else "[BŁĄD]" # Traktuj "brak wpisów" jako OK
-        # Log status: Pobrano (nawet jeśli puste po filtracji), Brak/Błąd jeśli nie pobrano wcale
-        log_status = "Pobrano" if data.get('logs') is not None else "Brak/Błąd"
-        # Filtered log status: Obecne jeśli niepuste, Puste/Brak jeśli puste lub błąd
-        filtered_status = "Obecne" if data.get('logs') else "Puste/Brak"
-        time_status = "Pełne" if data.get('current_unix_time') and data.get('uptime_seconds') is not None and data.get('estimated_boot_time_unix') is not None else "Niepełne/Brak"
-        error_msg = f" Info/Błąd: {data['error']}" if data.get('error') else ""
-
-        analysis_summary_text += f"{status:<7} {name} ({data['config']['role']}): Logi: {log_status} (filtrowane: {filtered_status}), Dane czasowe: {time_status}.{error_msg}\n"
-
-        if not data.get('error') or "Brak wpisów dmesg" in data.get('error',''):
-            data_collected_count += 1
-        if data.get('logs') is not None:
-             logs_collected_count += 1
-        if data.get('logs'): # Czy są niepuste logi po filtracji
-             filtered_logs_present += 1
-        if time_status == "Pełne":
-             time_data_collected_count +=1
-
-        raw_data_text += f"\n\n=== SUROWE DANE DLA: {name} (Rola: {data['config']['role']}) ===\n"
-        if data.get('error'): raw_data_text += f"BŁĄD/INFO PODCZAS POBIERANIA: {data['error']}\n"
-        if data.get('current_unix_time'):
-             ctime_str = datetime.fromtimestamp(data['current_unix_time'], timezone.utc).strftime('%Y-%m-%d %H:%M:%S %Z')
-             raw_data_text += f"Czas systemowy (Unix): {data['current_unix_time']} ({ctime_str})\n"
-        if data.get('uptime_seconds') is not None: raw_data_text += f"Uptime (sekundy): {data['uptime_seconds']}\n"
-        if data.get('estimated_boot_time_unix') is not None:
-             est_boot_str = datetime.fromtimestamp(data['estimated_boot_time_unix'], timezone.utc).strftime('%Y-%m-%d %H:%M:%S %Z')
-             raw_data_text += f"Szacowany czas startu (Unix): {data['estimated_boot_time_unix']} ({est_boot_str})\n"
-
-        raw_data_text += f"\n--- Logi dmesg (Filtrowane dla {analysis_hours}h) ---\n"
-        if data.get('logs') is not None:
-             if data['logs']:
-                  raw_data_text += data['logs']
-                  raw_data_text += f"\n[INFO: Rozmiar przed filtrowaniem: {data.get('raw_log_length','N/A')} B, po filtrowaniu: {data.get('filtered_log_length','N/A')} B]\n"
-             else: raw_data_text += f"[BRAK WPISÓW w ostatnich {analysis_hours}h lub błąd]\n"
-        else: raw_data_text += "[BŁĄD POBIERANIA LOGÓW]\n"
-        raw_data_text += f"--- Koniec danych dla: {name} ---\n"
-
-
-    gemini_analysis = ""
-    if GEMINI_API_KEY:
-        if logs_collected_count == 0:
-            gemini_analysis = "KRYTYCZNE: Nie udało się pobrać logów dmesg z żadnego routera. Analiza LLM nie jest możliwa."
-        elif filtered_logs_present == 0 and analysis_hours > 0:
-            gemini_analysis = f"INFORMACJA: Nie znaleziono żadnych wpisów w logach dmesg we wszystkich routerach w ciągu ostatnich {analysis_hours} godzin. Analiza LLM zostanie przeprowadzona, ale może nie zawierać istotnych informacji."
-        elif data_collected_count < len(router_configs):
-            gemini_analysis = f"UWAGA: Udało się pobrać dane bez krytycznych błędów tylko z {data_collected_count} z {len(router_configs)} routerów."
-        elif logs_collected_count < len(router_configs):
-            gemini_analysis = f"UWAGA: Logi dmesg (przed filtrowaniem) pobrano tylko z {logs_collected_count} z {len(router_configs)} routerów."
-        elif time_data_collected_count < len(router_configs):
-            gemini_analysis = f"UWAGA: Pełne dane czasowe pobrano tylko z {time_data_collected_count} z {len(router_configs)} routerów. Korelacja czasowa może być utrudniona."
-        else:
-            gemini_analysis = "" # No initial warnings
-
-        gemini_result = analyze_logs_with_gemini(GEMINI_API_KEY, all_router_data, analysis_hours)
-        gemini_analysis += "\n" + "="*20 + f" Wynik Analizy Gemini ({analysis_hours}h) " + "="*20 + "\n" + gemini_result
-        gemini_analysis += "\n" + "="* (44 + len(f" Wynik Analizy Gemini ({analysis_hours}h) ")) # Dopasuj długość linii
-    else:
-        gemini_analysis = "\nUWAGA: Klucz API Gemini nie został znaleziony. Nie można przeprowadzić automatycznej analizy LLM.\n" + raw_data_text
-
-
-    return render_template('results.html', analysis_hours=analysis_hours, analysis_summary=analysis_summary_text, gemini_analysis=gemini_analysis, raw_data=raw_data_text, gemini_api_key_available=bool(GEMINI_API_KEY))
-
+    return render_template('results.html', router_data=router_data, analysis_hours=analysis_hours, gemini_analysis=gemini_analysis)
 
 if __name__ == "__main__":
     print(f"--- Analizator Logów Routera z Gemini ({GEMINI_MODEL_NAME}) ---")
