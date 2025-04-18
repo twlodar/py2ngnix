@@ -165,8 +165,20 @@ def get_ssh_connection(hostname, port, username, key_path=None, password=None):
         if key_path:
             auth_method = f"klucza ({os.path.basename(key_path)})"
             print(f"Używam klucza: {key_path}") # LOGGING
+            
+            # 🔍 DEBUG: szczegółowe informacje o ścieżce klucza
+            print(f"DEBUG: Szukam klucza pod: {key_path}")
+            print(f"DEBUG: Istnieje? {os.path.exists(key_path)}")
+            try:
+                print(f"DEBUG: Uprawnienia: {oct(os.stat(key_path).st_mode)}")
+            except Exception as e:
+                print(f"DEBUG: Błąd przy sprawdzaniu statystyki pliku: {e}")
+            
+            
             if not os.path.isfile(key_path):
                  raise FileNotFoundError(f"Plik klucza prywatnego nie istnieje lub nie jest plikiem: {key_path}")
+            
+            
             key = None
             key_types = [paramiko.RSAKey, paramiko.Ed25519Key, paramiko.ECDSAKey, paramiko.DSSKey]
             last_exception = None
