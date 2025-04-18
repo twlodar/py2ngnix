@@ -168,11 +168,13 @@ def get_ssh_connection(hostname, port, username, key_path=None, password=None):
     """Nawiązuje połączenie SSH i zwraca obiekt klienta."""
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    logger.error("Log 1") # LOGGING
 
     try:
         print(f"Łączenie z {hostname}:{port} jako {username}...") # LOGGING
         print(f"  Host: {hostname}, Port: {port}, User: {username}, Key Path: {key_path}, Password Provided: {bool(password)}") # LOGGING
         auth_method = "niczego"
+        logger.error(f"Łączenie z {hostname}:{port} jako {username}...")
         if key_path:
             auth_method = f"klucza ({os.path.basename(key_path)})"
             print(f"Używam klucza: {key_path}") # LOGGING
