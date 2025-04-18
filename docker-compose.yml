@@ -19,6 +19,8 @@ services:
       args:
         CACHE_BUSTER: "1.0.1"  # zmieniaj ten numer przy każdej aktualizacji
     #build: ./app3
+    environment:
+      - PYTHONUNBUFFERED=1
     networks:
       - appnet    
     volumes:
