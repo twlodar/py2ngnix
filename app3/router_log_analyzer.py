@@ -13,6 +13,16 @@ from flask import Flask, request, jsonify, render_template # Dodano Flask
 from flask_cors import CORS # Dodano CORS
 from markupsafe import Markup # Import Markup from jinja2
 import subprocess
+import logging
+
+# Konfiguracja logowania
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+logger = logging.getLogger(__name__)
 # --- Konfiguracja ---
 
 SECRETS_FILE = "secrets.yaml"
@@ -29,6 +39,7 @@ def load_gemini_api_key(filename=SECRET_GEMINI_FILE):
 
     if not os.path.exists(filepath):
         print(f"BŁĄD: Plik z kluczem API '{filename}' nie został znaleziony w katalogu skryptu ({script_dir}).")
+        logger.error(f"BŁĄD: Plik z kluczem API '{filename}' nie został znaleziony w katalogu skryptu ({script_dir}).")
         return None
 
     try:
@@ -228,13 +239,16 @@ def get_ssh_connection(hostname, port, username, key_path=None, password=None):
     except paramiko.AuthenticationException as auth_e: # LOGGING - Specific exception
         print(f"BŁĄD: Uwierzytelnienie nie powiodło się dla {username}@{hostname} przy użyciu {auth_method}.") # LOGGING
         print(f"  Szczegóły błędu uwierzytelnienia: {auth_e}") # LOGGING
+        logger.error(f"  Szczegóły błędu uwierzytelnienia: {auth_e}") # LOGGING
     except paramiko.SSHException as sshException: # LOGGING - Specific exception
         print(f"BŁĄD: Nie można ustanowić połączenia SSH z {hostname}: {sshException}") # LOGGING
+        logger.error(f"Nie można ustanowić połączenia SSH z {hostname}: {sshException}")
     except FileNotFoundError as e: # LOGGING - Specific exception
         print(f"BŁĄD: {e}") # LOGGING
     except Exception as e: # LOGGING - Catch-all exception
         print(f"BŁĄD: Wystąpił nieoczekiwany błąd podczas łączenia z {hostname}: {e}") # LOGGING
-
+        logger.error(f"BŁĄD: Wystąpił nieoczekiwany błąd podczas łączenia z {hostname}: {e}") # LOGGING
+        
     return None
 
 def execute_ssh_command(ssh_client, command):
